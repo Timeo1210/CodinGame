@@ -1,4 +1,4 @@
-import { Entity } from "./entity";
+import { Entity, EntityType } from "./entity";
 
 export class Coord {
   constructor(public x: number, public y: number) {}
@@ -9,12 +9,23 @@ export class Coord {
 }
 
 export const nearestMonstersFromEntity = (
-  entity: Entity,
+  baseEntity: Entity,
   monsters: Entity[]
 ): Entity[] => {
   return monsters.sort(
     (entity, nextEntity) =>
-      entity.getDistanceFrom(entity.coord.x, entity.coord.y) -
-      entity.getDistanceFrom(nextEntity.coord.x, nextEntity.coord.y)
+      baseEntity.getDistanceFrom(entity.coord.x, entity.coord.y) -
+      baseEntity.getDistanceFrom(nextEntity.coord.x, nextEntity.coord.y)
   );
 };
+
+export const sortByDistanceFromEntityPure = (array: Entity[], entity: Entity) =>
+  [...array].sort(
+    (a, b) => entity.getDistanceFromEntity(a) - entity.getDistanceFromEntity(b)
+  );
+
+export const getMonstersFromEntities = (entities: Entity[]) =>
+  entities.filter(
+    (entity) =>
+      entity.type === EntityType.MONSTER && entity.distanceFromMyBase > 5000
+  );

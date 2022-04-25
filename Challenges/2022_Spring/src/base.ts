@@ -8,6 +8,8 @@ export enum BaseType {
 export class Base {
   public coord: Coord;
   public defendCoord: Coord[];
+  public color: "red" | "blue";
+  public passagrvCoord: Coord[];
 
   constructor(
     _x: number,
@@ -30,18 +32,30 @@ export class Base {
     //     new Coord(14000, 5500),
     //     new Coord(13000, 7500),
     //   ];
-    if (this.coord.x === 0 && this.coord.y === 0)
+    this.color = this.coord.x === 0 ? "blue" : "red";
+    if (this.color === "blue") {
       this.defendCoord = [
         new Coord(2000, 6000),
         new Coord(4000, 4500),
         new Coord(5500, 2000),
       ];
-    else
+      this.passagrvCoord = [
+        new Coord(2500, 7000),
+        new Coord(5500, 5500),
+        new Coord(7000, 2500),
+      ];
+    } else {
       this.defendCoord = [
-        new Coord(1500, 3500),
+        new Coord(15000, 3500),
         new Coord(13000, 5000),
         new Coord(12000, 7000),
       ];
+      this.passagrvCoord = [
+        new Coord(14000, 2500),
+        new Coord(11000, 4000),
+        new Coord(10370, 6500),
+      ];
+    }
   }
   setHealth(value: number) {
     this.health = value;
