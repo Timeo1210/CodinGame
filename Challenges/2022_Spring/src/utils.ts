@@ -27,5 +27,12 @@ export const sortByDistanceFromEntityPure = (array: Entity[], entity: Entity) =>
 export const getMonstersFromEntities = (entities: Entity[]) =>
   entities.filter(
     (entity) =>
-      entity.type === EntityType.MONSTER && entity.distanceFromMyBase > 5000
+      // entity.type === EntityType.MONSTER && entity.distanceFromMyBase > 5000
+      entity.type === EntityType.MONSTER
   );
+
+export const objectMap = (
+  obj: { [key: number]: Entity },
+  fn: (value: Entity, key: string, index: number) => {}
+) =>
+  Object.fromEntries(Object.entries(obj).map(([k, v], i) => [k, fn(v, k, i)]));

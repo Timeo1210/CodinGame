@@ -1,10 +1,6 @@
 import { Base, BaseType } from "./base";
 import { Entity, EntityType } from "./entity";
-import {
-  getMonstersFromEntities,
-  nearestMonstersFromEntity,
-  sortByDistanceFromEntityPure,
-} from "./utils";
+import { getMonstersFromEntities, sortByDistanceFromEntityPure } from "./utils";
 
 var inputs: string[] = readline().split(" ");
 const baseX: number = parseInt(inputs[0]); // The corner of the map representing your base
@@ -67,6 +63,9 @@ while (true) {
   const myMonsters = entities.filter(
     (entity) => entity.threatFor === BaseType.MY_BASE
   );
+  const otherHeros = entities
+    .filter((entity) => entity.type === EntityType.OTHER_HERO)
+    .sort((hero, nextHero) => hero.id - nextHero.id);
 
   // clear entitiesTag
   entitiesTag = entitiesTag.filter((entityTag) =>
@@ -79,11 +78,7 @@ while (true) {
       entity.distanceFromMyBase - nextEntity.distanceFromMyBase
   );
 
-  console.error(
-    "SORTED:",
-    myMonstersSortedByDistanceFromBase.map((monster) => monster.id)
-  );
-
+  // HANDLE ATTACK
   for (
     let i = 0;
     i < Math.min(myMonstersSortedByDistanceFromBase.length, 3);
@@ -95,10 +90,6 @@ while (true) {
         hero.getDistanceFromEntity(monsterToAssign) -
         nextHero.getDistanceFromEntity(monsterToAssign)
     );
-    console.error(
-      `NEAREST FROM ${monsterToAssign.id}:`,
-      nearestHeroes.map((hero) => hero.id)
-    );
     for (let j = 0; j < nearestHeroes.length; j++) {
       if (monstersToHandleByHero[nearestHeroes[j].id] !== null) continue;
       monstersToHandleByHero[nearestHeroes[j].id] = monsterToAssign;
@@ -106,14 +97,100 @@ while (true) {
     }
   }
 
-  const monsters = getMonstersFromEntities(entities);
-  const noHandleHeros: Entity[] = [];
+  // HANDLE PASSGRV
+  let noHandleMonsters = getMonstersFromEntities(entities).filter((monster) =>
+    monstersToHandleByHero.every((monsterHandled) =>
+      monsterHandled ? monsterHandled.id !== monster.id : true
+    )
+  );
+  let noHandleHeros: Entity[] = [];
   // populate noHandleHeros
   monstersToHandleByHero.forEach((value, index) => {
     if (value === null) noHandleHeros.push(myHeros[index]);
   });
+  console.error(
+    "noHandleHeros",
+    noHandleHeros.map((hero) => hero.id)
+  );
 
-  for (let i = 0; i < Math.min(monsters.length, noHandleHeros.length); i++) {}
+  // HANDLE DEFENSE FOR PASSGRV
+  otherHeros.forEach((otherHero) => {
+    if (otherHero.distanceFromMyBase < 6000 && noHandleHeros.length > 0) {
+      // find nearest hero from otherHero
+      const nearestHeroFromOtherHero = sortByDistanceFromEntityPure(
+        noHandleHeros,
+        otherHero
+      )[0];
+      if (myBase.color === "red") otherHero.id -= 3;
+      monstersToHandleByHero[nearestHeroFromOtherHero.id] = otherHero;
+
+      noHandleHeros = noHandleHeros.filter(
+        (hero) => monstersToHandleByHero[hero.id] === null
+      );
+    }
+  });
+
+  while (noHandleHeros.length > 0 && noHandleMonsters.length > 0) {
+    if (noHandleHeros.length > 0 && noHandleMonsters.length > 0) {
+      const nearestMonsterByHero: { [key: number]: Entity } = {};
+      noHandleHeros.forEach((hero) => {
+        nearestMonsterByHero[hero.id] = sortByDistanceFromEntityPure(
+          noHandleMonsters,
+          hero
+        )[0];
+      });
+
+      const nearestHeroByMonster: { [key: number]: Entity } = {};
+      noHandleMonsters.forEach((monster) => {
+        nearestHeroByMonster[monster.id] = sortByDistanceFromEntityPure(
+          noHandleHeros,
+          monster
+        )[0];
+      });
+
+      if (
+        Object.keys(nearestMonsterByHero).length >
+        Object.keys(nearestHeroByMonster).length
+      ) {
+        for (let monsterId in nearestHeroByMonster) {
+          const myMonster = noHandleMonsters.find(
+            (monster) => monster.id === parseInt(monsterId)
+          ) as Entity;
+          const nearestHeroFromMonster = nearestHeroByMonster[myMonster.id];
+          const nearestMonsterFromNearestHero =
+            nearestMonsterByHero[nearestHeroFromMonster.id];
+          if (nearestMonsterFromNearestHero.id === myMonster.id) {
+            monstersToHandleByHero[nearestHeroFromMonster.id] = myMonster;
+          }
+        }
+      } else {
+        for (let heroId in nearestMonsterByHero) {
+          const myHero = noHandleHeros.find(
+            (hero) => hero.id === parseInt(heroId)
+          ) as Entity;
+          const nearestMonsterFromHero = nearestMonsterByHero[myHero.id];
+          const nearestHeroFromNearestMonster =
+            nearestHeroByMonster[nearestMonsterFromHero.id];
+          if (nearestHeroFromNearestMonster.id === myHero.id) {
+            monstersToHandleByHero[myHero.id] = nearestMonsterFromHero;
+          }
+        }
+      }
+
+      //filter noHandleHeros and noHandleMonsters
+      noHandleHeros = noHandleHeros.filter(
+        (hero) => monstersToHandleByHero[hero.id] === null
+      );
+      noHandleMonsters = noHandleMonsters.filter(
+        (monster) => !monstersToHandleByHero.includes(monster)
+      );
+    }
+  }
+
+  console.error(
+    "monstersToHandleByHero:",
+    monstersToHandleByHero.map((monster) => (monster ? monster.id : null))
+  );
 
   monstersToHandleByHero.forEach((monsterToHandle, heroIndex) => {
     const myHero = myHeros[heroIndex];
@@ -122,52 +199,68 @@ while (true) {
       // WRITES SOME LOGIC HERE
       if (myHero.distanceFromMyBase > 8000)
         console.log(`MOVE ${myBase.coord.x} ${myBase.coord.y}`, "WAIT");
-      else if (myMonstersSortedByDistanceFromBase.length <= 2) {
-        // FIND NEREST ENTITY
-        // CARE ABOUT WIND
-        // CLEAN AND CREATE ATTACK BOT OR REALLY DEFENSE GUY
-        // IF ENNEMY DISTANCE FROM BASE < ??? USE HERO TO PUSH HIM AWAY
-        const monsters = sortByDistanceFromEntityPure(
-          getMonstersFromEntities(entities),
-          myHero
-        );
-
-        if (monsters.length > 0)
-          console.log(
-            `MOVE ${monsters[0].coord.x} ${monsters[0].coord.y}`,
-            "PASSAGR"
-          );
-        else {
-          console.log(
-            `MOVE ${myBase.passagrvCoord[heroIndex].x} ${myBase.passagrvCoord[heroIndex].y}`,
-            "PASSIF"
-          );
-        }
-      } else {
+      else
         console.log(
           `MOVE ${myBase.defendCoord[heroIndex].x} ${myBase.defendCoord[heroIndex].y}`,
           "DEFEND"
         );
-      }
     } else if (
-      // myHero.distanceFromMyBase < 4500 &&
-      myHero.distanceFromMyBase < 6000 &&
+      monsterToHandle.getDistanceFromEntity(myHero) < 2200 &&
+      monsterToHandle.shieldLife === 0 &&
+      monsterToHandle.distanceFromMyBase < 5000 &&
+      ((monsterToHandle.type === EntityType.OTHER_HERO &&
+        myBase.getMana() > 10) ||
+        (monsterToHandle.type === EntityType.MONSTER &&
+          myBase.getMana() > 50 &&
+          monsterToHandle.getDistanceFromEntity(myHero) > 1280))
+    ) {
+      // SPELL CONTROL IF:
+      // - In range
+      // - No shield
+      // - distanceFromBase < 4000
+      // - IF otherHero:
+      //    - Mana > 10
+      // - ELSE:
+      //    - Mana > 50
+
+      console.log(
+        `SPELL CONTROL ${monsterToHandle.id} ${otherBase.coord.x} ${otherBase.coord.y}`
+      );
+      myBase.setMana(myBase.getMana() - 10);
+    } else if (
       myBase.getMana() > 10 &&
       monsterToHandle.getDistanceFromEntity(myHero) < 1280 &&
-      monsterToHandle.shieldLife === 0
+      monsterToHandle.shieldLife === 0 &&
+      ((otherHeros.length > 0 &&
+        monsterToHandle.distanceFromMyBase < 4000 &&
+        (
+          monstersToHandleByHero.filter(
+            (monster) => monster !== null
+          ) as Entity[]
+        ).sort(
+          (monster, nextMonster) =>
+            monster.distanceFromMyBase - nextMonster.distanceFromMyBase
+        )[0].id === monsterToHandle.id) ||
+        (otherHeros.length === 0 && monsterToHandle.distanceFromMyBase < 6000))
     ) {
       // SPELL WIND IF:
-      // - In range
-      // - Mana is > 10
-      // - Hero is in the circle
-      // - All nerby monsters has no shield
+      //  - Mana is > 10
+      //  - Hero in range
+      //  - No shield
+      //
+      //  - IF otherHeros:
+      //    - distanceFromBase < 4000
+      //    - monsterToHandle nearest from base
+      //  - ELSE:
+      //    - distanceFromBase < 6000
+
       console.log(`SPELL WIND ${otherBase.coord.x} ${otherBase.coord.y}`);
       myBase.setMana(myBase.getMana() - 10);
     } else {
       // MOVE TO TARGET MONSTER
       console.log(
         `MOVE ${monsterToHandle.coord.x} ${monsterToHandle.coord.y}`,
-        `HERO ${heroIndex}`
+        `HERO ${monsterToHandle.id <= 6 ? "DEFEND" : heroIndex}`
       );
     }
   });
